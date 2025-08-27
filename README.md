@@ -1,12 +1,27 @@
-# React + Vite
+# 4qa
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+4QA Stats is a web app for tracking basketball player stats in the Fourth Quarter Athlete (4QA) league. Players can log wins, losses, and win percentage, with rankings based on a weighted formula. Built with React and Tailwind CSS, it offers a dynamic leaderboard and interactive player profiles.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Statistics Tracking**: Log wins, losses, and calculate win percentages
+- **Player Rankings**: Weighted ranking system based on wins and win percentage
+- **Player Profiles**: Detailed player information including bio data
+- **Responsive Design**: Modern UI built with Tailwind CSS
+- **Local Storage**: Data persists between sessions
+- **Real-time Updates**: Instant updates with hot module replacement
 
-## Expanding the ESLint configuration
+## Tech Stack
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- React 19
+- Vite
+- Tailwind CSS
+- Framer Motion (animations)
+- Local Storage for data persistence
+
+## Getting Started
+
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Start development server: `npm run dev`
+4. Open [http://localhost:5173](http://localhost:5173) in your browser
