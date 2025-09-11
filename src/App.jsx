@@ -81,6 +81,7 @@ export default function App() {
   const autoSaveTimeoutRef = useRef(null);
   const [toastType, setToastType] = useState("success");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [previousView, setPreviousView] = useState("bio");
 
   const showToast = (message, type = "success") => {
     setToastMessage(message);
@@ -317,6 +318,7 @@ export default function App() {
   };
 
   const viewProfile = (player) => {
+    setPreviousView(view); // Store current view before switching to profile
     setSelectedPlayer(player);
     setView("profile");
   };
@@ -598,6 +600,17 @@ export default function App() {
       {/* Player Profile */}
       {view === "profile" && selectedPlayer && (
         <>
+          {/* Back Arrow */}
+          <button
+            onClick={() => setView(previousView)}
+            className="fixed top-4 left-4 z-50 p-2 bg-gray-800 hover:bg-gray-700 rounded-lg shadow-lg text-gray-300 hover:text-white transition-colors"
+            title={`Back to ${previousView === "standings" ? "Standings" : "Bio"}`}
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+
           <motion.h1 
             initial={{ opacity: 0, y: -20 }} 
             animate={{ opacity: 1, y: 0 }} 
@@ -645,14 +658,6 @@ export default function App() {
       {/* Edit Player Page */}
       {view === "edit" && selectedPlayer && (
         <>
-          <motion.h1 
-            initial={{ opacity: 0, y: -20 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            transition={{ duration: 0.6 }}
-            className="text-2xl sm:text-4xl font-bold text-center mb-6 sm:mb-10 text-silver"
-          >
-            Edit {selectedPlayer.name}'s Profile
-          </motion.h1>
 
 
           <div className="max-w-2xl mx-auto p-4 sm:p-6 bg-gray-900 border border-gray-700 rounded-xl shadow-lg">
@@ -961,172 +966,6 @@ export default function App() {
         </>
       )}
 
-      {/* Edit Player Page */}
-      {view === "edit" && selectedPlayer && (
-        <>
-          <motion.h1 
-            initial={{ opacity: 0, y: -20 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            transition={{ duration: 0.6 }}
-            className="text-2xl sm:text-4xl font-bold text-center mb-6 sm:mb-10 text-silver"
-          >
-            Edit {selectedPlayer.name}'s Profile
-          </motion.h1>
-
-
-          <div className="max-w-2xl mx-auto p-4 sm:p-6 bg-gray-900 border border-gray-700 rounded-xl shadow-lg">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Name</label>
-                <input 
-                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
-                  value={formData.name} 
-                  onChange={e => {
-                    const newFormData = { ...formData, name: e.target.value };
-                    setFormData(newFormData);
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Position</label>
-                <select 
-                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
-                  value={formData.position} 
-                  onChange={e => {
-                    const newFormData = { ...formData, position: e.target.value };
-                    setFormData(newFormData);
-                  }}
-                >
-                  <option value="G">Guard (G)</option>
-                  <option value="F">Forward (F)</option>
-                  <option value="C">Center (C)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Height/Weight</label>
-                <input 
-                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
-                  value={formData.htwt} 
-                  onChange={e => {
-                    const newFormData = { ...formData, htwt: e.target.value };
-                    setFormData(newFormData);
-                  }}
-                  placeholder="e.g., 6'0, 185lbs"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">College</label>
-                <input 
-                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
-                  value={formData.college} 
-                  onChange={e => {
-                    const newFormData = { ...formData, college: e.target.value };
-                    setFormData(newFormData);
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Birthplace</label>
-                <input 
-                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
-                  value={formData.birthplace} 
-                  onChange={e => {
-                    const newFormData = { ...formData, birthplace: e.target.value };
-                    setFormData(newFormData);
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
-                <select 
-                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
-                  value={formData.status} 
-                  onChange={e => {
-                    const newFormData = { ...formData, status: e.target.value };
-                    setFormData(newFormData);
-                  }}
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Experience</label>
-                <select 
-                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
-                  value={formData.experience} 
-                  onChange={e => {
-                    const newFormData = { ...formData, experience: e.target.value };
-                    setFormData(newFormData);
-                  }}
-                >
-                  <option value="1st Season">1st Season</option>
-                  <option value="2nd Season">2nd Season</option>
-                  <option value="3rd Season">3rd Season</option>
-                  <option value="4th Season">4th Season</option>
-                  <option value="5th Season">5th Season</option>
-                  <option value="6th Season">6th Season</option>
-                  <option value="7th Season">7th Season</option>
-                  <option value="8th Season">8th Season</option>
-                  <option value="9th Season">9th Season</option>
-                  <option value="10th Season">10th Season</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Awards</label>
-                <input 
-                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
-                  value={formData.awards} 
-                  onChange={e => {
-                    const newFormData = { ...formData, awards: e.target.value };
-                    setFormData(newFormData);
-                  }}
-                  placeholder="e.g., All-Star 2023, MVP 2021"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Wins</label>
-                <input 
-                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
-                  type="number" 
-                  value={formData.wins} 
-                  onChange={e => {
-                    const value = e.target.value;
-                    const newFormData = { ...formData, wins: value === '' ? '' : parseInt(value) || 0 };
-                    setFormData(newFormData);
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Losses</label>
-                <input 
-                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
-                  type="number" 
-                  value={formData.losses} 
-                  onChange={e => {
-                    const value = e.target.value;
-                    const newFormData = { ...formData, losses: value === '' ? '' : parseInt(value) || 0 };
-                    setFormData(newFormData);
-                  }}
-                />
-              </div>
-            </div>
-            <div className="flex gap-4 mt-6">
-              <Button onClick={() => {
-                console.log('🔄 Save Changes button clicked!');
-                console.log('Current selectedPlayer:', selectedPlayer);
-                console.log('Current formData:', formData);
-                addOrUpdatePlayer();
-              }} className="flex-1 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg">
-                Save Changes
-              </Button>
-              <Button onClick={() => { setSelectedPlayer(null); setView("bio"); }} className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-lg">
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </>
-      )}
     </div>
   );
 }
