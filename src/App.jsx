@@ -29,8 +29,7 @@ const PLAYER_LIST = [
   "Dane Dill",
   "KC Crowder",
   "Blake Schultz",
-  "Brain Gomez",
-  "Joe Richard",
+  "Brian Gomez",
   "Brandon Wright"
 ];
 
@@ -44,35 +43,29 @@ function calculateRankings(players) {
 }
 
 export default function App() {
-  const [players, setPlayers] = useState([
-    { name: "Amani Jean-Louis", wins: 0, losses: 0, htwt: "6'0, 185lbs", college: "University of Florida", birthplace: "Miami, FL", status: "Active", experience: "5th Season", position: "G", awards: "All-Star 2023" },
-    { name: "Bobby Floyd", wins: 0, losses: 0, htwt: "5'10, 180lbs", college: "North Carolina State", birthplace: "St. Petersburg, FL", status: "Active", experience: "4th Season", position: "G", awards: "Defensive Player of the Year 2022" },
-    { name: "Adrian Thomas", wins: 0, losses: 0, htwt: "6'3, 195lbs", college: "University of Miami", birthplace: "Orlando, FL", status: "Active", experience: "6th Season", position: "F", awards: "MVP 2021" },
-    { name: "Oscar Moncada", wins: 0, losses: 0, htwt: "6'1, 175lbs", college: "Florida International University", birthplace: "Tampa, FL", status: "Active", experience: "3rd Season", position: "G", awards: "Rookie of the Year 2022" },
-    { name: "Joey Grasso", wins: 0, losses: 0, htwt: "6'2, 190lbs", college: "University of Central Florida", birthplace: "Jacksonville, FL", status: "Active", experience: "4th Season", position: "G", awards: "Sixth Man of the Year 2023" },
-    { name: "Scott Ely", wins: 0, losses: 0, htwt: "6'4, 200lbs", college: "University of South Florida", birthplace: "Fort Lauderdale, FL", status: "Active", experience: "7th Season", position: "F", awards: "All-Defensive Team 2022" },
-    { name: "Shaun Morton", wins: 0, losses: 0, htwt: "6'0, 185lbs", college: "Florida Atlantic University", birthplace: "West Palm Beach, FL", status: "Active", experience: "3rd Season", position: "G", awards: "Most Improved Player 2023" },
-    { name: "Jordan Bowditch", wins: 0, losses: 0, htwt: "6'3, 195lbs", college: "University of North Florida", birthplace: "Gainesville, FL", status: "Active", experience: "5th Season", position: "F", awards: "All-Star 2022" },
-    { name: "Derek Kissos", wins: 0, losses: 0, htwt: "6'1, 180lbs", college: "Florida Gulf Coast University", birthplace: "Naples, FL", status: "Active", experience: "2nd Season", position: "G", awards: "" },
-    { name: "Dane Espegard", wins: 0, losses: 0, htwt: "6'2, 190lbs", college: "University of Tampa", birthplace: "Sarasota, FL", status: "Active", experience: "6th Season", position: "G", awards: "All-Defensive Team 2023" },
-    { name: "Dane Dill", wins: 0, losses: 0, htwt: "6'4, 205lbs", college: "Stetson University", birthplace: "Daytona Beach, FL", status: "Active", experience: "4th Season", position: "F", awards: "Defensive Player of the Year 2023" },
-    { name: "KC Crowder", wins: 0, losses: 0, htwt: "6'0, 175lbs", college: "Rollins College", birthplace: "Winter Park, FL", status: "Active", experience: "5th Season", position: "G", awards: "All-Star 2021" },
-    { name: "Blake Schultz", wins: 0, losses: 0, htwt: "6'3, 195lbs", college: "Eckerd College", birthplace: "Clearwater, FL", status: "Active", experience: "2nd Season", position: "F", awards: "" },
-    { name: "Brain Gomez", wins: 0, losses: 0, htwt: "6'1, 185lbs", college: "Nova Southeastern University", birthplace: "Hollywood, FL", status: "Active", experience: "6th Season", position: "G", awards: "All-Star 2022" },
-    { name: "Joe Richard", wins: 0, losses: 0, htwt: "6'2, 190lbs", college: "Barry University", birthplace: "Miami Beach, FL", status: "Active", experience: "3rd Season", position: "G", awards: "Most Improved Player 2022" },
-    { name: "Brandon Wright", wins: 0, losses: 0, htwt: "6'4, 200lbs", college: "Lynn University", birthplace: "Boca Raton, FL", status: "Active", experience: "4th Season", position: "F", awards: "All-Defensive Team 2021" }
-  ]);
+  const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [view, setView] = useState("data");
   const [bioTab, setBioTab] = useState("profiles");
   const [formData, setFormData] = useState({
-    name: "", wins: 0, losses: 0,
+    name: "", wins: "", losses: "",
     htwt: "", college: "", birthplace: "",
     status: "", experience: "", position: "", awards: ""
   });
-  const [sessionData, setSessionData] = useState({ name: "", wins: 0, losses: 0 });
+  const [sessionData, setSessionData] = useState({ name: "", wins: "", losses: "" });
   const [connectionStatus, setConnectionStatus] = useState("Unknown");
   const [connectionStable, setConnectionStable] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState("success");
+
+  const showToast = (message, type = "success") => {
+    setToastMessage(message);
+    setToastType(type);
+    setTimeout(() => {
+      setToastMessage("");
+    }, 3000);
+  };
 
   useEffect(() => {
     console.log('🚀 App starting up - setting up Firebase connection...');
@@ -99,23 +92,21 @@ export default function App() {
         console.log('✅ Firebase connection established');
         setConnectionStatus("Connected");
         setConnectionStable(true);
+        setIsLoading(false);
       }
       
       if (firebasePlayers.length === 0) {
         // If no players in Firebase, initialize with default players
-        console.log('🔄 No players found, initializing default players...');
+        console.log('🔄 No players found, initializing all 15 default players...');
         initializeDefaultPlayers();
-      } else if (firebasePlayers.length < 16) {
-        // If we have some players but not all 16, we might need to add the missing ones
-        console.log(`📊 Found ${firebasePlayers.length} players, but expected 16. You can use "Init All Players" button to add missing players.`);
+      } else if (firebasePlayers.length < 15) {
+        // If we have some players but not all 15, add the missing ones
+        console.log(`📊 Found ${firebasePlayers.length} players, but expected 15. Adding missing players...`);
         setPlayers(firebasePlayers);
-        
-        // Log each player for debugging
-        firebasePlayers.forEach((player, index) => {
-          console.log(`Player ${index + 1}:`, player.name, player.id);
-        });
+        initializeDefaultPlayers();
       } else {
-        console.log('📊 Loading existing players from Firebase');
+        // Load all players from Firebase
+        console.log('📊 Loading all players from Firebase');
         console.log('📊 Setting players state with:', firebasePlayers.length, 'players');
         setPlayers(firebasePlayers);
         
@@ -128,14 +119,31 @@ export default function App() {
       // Handle real-time listener errors
       console.error('❌ Real-time listener error:', error);
       clearTimeout(connectionTimeout);
-      setConnectionStatus("Failed");
+      
+      // Provide more specific error messages
+      if (error.code === 'permission-denied') {
+        setConnectionStatus("Permission Denied");
+        console.error('❌ Firebase permission denied - check your Firestore security rules');
+      } else if (error.code === 'unavailable') {
+        setConnectionStatus("Service Unavailable");
+        console.error('❌ Firebase service unavailable - check your internet connection');
+      } else if (error.message.includes('not initialized')) {
+        setConnectionStatus("Not Initialized");
+        console.error('❌ Firebase not properly initialized - check your configuration');
+      } else {
+        setConnectionStatus("Failed");
+        console.error('❌ Firebase connection failed:', error.message);
+      }
       setConnectionStable(false);
+      setIsLoading(false);
     });
 
     return () => {
       console.log('🔄 Cleaning up Firebase listener');
       clearTimeout(connectionTimeout);
-      unsubscribe();
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
     };
   }, []);
 
@@ -148,22 +156,21 @@ export default function App() {
     console.log('📋 Current players in database:', existingNames);
     
     const defaultPlayers = [
-      { name: "Amani Jean-Louis", wins: 12, losses: 8, htwt: "6'0, 175lbs", college: "University of Houston", birthplace: "Chicago, IL", status: "Active", experience: "5th Season", position: "G", awards: "All-Star 2023, Team Captain" },
-      { name: "Bobby Floyd", wins: 15, losses: 5, htwt: "5'10, 180lbs", college: "North Carolina State", birthplace: "St. Petersburg, FL", status: "Active", experience: "4th Season", position: "G", awards: "Defensive Player of the Year 2022, 2023" },
-      { name: "Adrian Thomas", wins: 18, losses: 2, htwt: "6'0, 200lbs", college: "Missouri Western State", birthplace: "Austin, TX", status: "Active", experience: "6th Season", position: "F", awards: "MVP 2021, 2023, All-Star 2020-2023" },
-      { name: "Oscar Moncada", wins: 8, losses: 12, htwt: "6'5, 215lbs", college: "Florida International University", birthplace: "La Ceiba, Atlantida", status: "Active", experience: "3rd Season", position: "G", awards: "Rookie of the Year 2022" },
-      { name: "Joey Grasso", wins: 10, losses: 10, htwt: "6'0, 180lbs", college: "Centralia College", birthplace: "Long Island, NY", status: "Active", experience: "4th Season", position: "G", awards: "Sixth Man of the Year 2023" },
-      { name: "Scott Ely", wins: 14, losses: 6, htwt: "6'0, 190lbs", college: "Oklahoma University", birthplace: "El Paso, TX", status: "Active", experience: "7th Season", position: "F", awards: "All-Defensive Team 2022, 2023" },
-      { name: "Shaun Morton", wins: 7, losses: 13, htwt: "6'0, 215lbs", college: "Florida Atlantic University", birthplace: "San Antonio, TX", status: "Active", experience: "3rd Season", position: "G", awards: "Most Improved Player 2023" },
-      { name: "Jordan Bowditch", wins: 11, losses: 9, htwt: "5'10, 185lbs", college: "San Diego State", birthplace: "Orange County, CA", status: "Active", experience: "5th Season", position: "F", awards: "All-Star 2022" },
-      { name: "Derek Kissos", wins: 5, losses: 15, htwt: "6'2, 200lbs", college: "Ohio State", birthplace: "New Albany, OH", status: "Active", experience: "2nd Season", position: "G", awards: "Rising Star 2023" },
-      { name: "Dane Espegard", wins: 13, losses: 7, htwt: "6'1, 200lbs", college: "University of Wisconsin", birthplace: "Wisconsin Dells, Wisconsin", status: "Active", experience: "6th Season", position: "G", awards: "All-Defensive Team 2023, 3-Point Champion" },
-      { name: "Dane Dill", wins: 16, losses: 4, htwt: "6'2, 210lbs", college: "University of Texas", birthplace: "Pflugerville, TX", status: "Active", experience: "4th Season", position: "F", awards: "Defensive Player of the Year 2023, Rebounding Leader" },
-      { name: "KC Crowder", wins: 9, losses: 11, htwt: "5'10, 195lbs", college: "Wallace College", birthplace: "Opelika, AL", status: "Active", experience: "5th Season", position: "G", awards: "All-Star 2021, Assist Leader 2022" },
-      { name: "Blake Schultz", wins: 6, losses: 14, htwt: "6'1, 175lbs", college: "Williams College", birthplace: "Palo Alto, CA", status: "Active", experience: "2nd Season", position: "F", awards: "Rookie of the Year 2023" },
-      { name: "Brain Gomez", wins: 12, losses: 8, htwt: "5'10, 190lbs", college: "Collin College", birthplace: "Houston, TX", status: "Active", experience: "6th Season", position: "G", awards: "All-Star 2022, Clutch Performer" },
-      { name: "Joe Richard", wins: 8, losses: 12, htwt: "6'2, 190lbs", college: "Barry University", birthplace: "Miami Beach, FL", status: "Active", experience: "3rd Season", position: "G", awards: "Most Improved Player 2022" },
-      { name: "Brandon Wright", wins: 14, losses: 6, htwt: "6'2, 190lbs", college: "University of Oregon", birthplace: "Portland, OR", status: "Active", experience: "4th Season", position: "F", awards: "All-Defensive Team 2021, 2023, Block Leader" }
+      { name: "Amani Jean-Louis", wins: 12, losses: 8, htwt: "6'0, 185lbs", college: "University of Florida", birthplace: "Miami, FL", status: "Active", experience: "5th Season", position: "G", awards: "All-Star 2023" },
+      { name: "Bobby Floyd", wins: 15, losses: 5, htwt: "5'10, 180lbs", college: "North Carolina State", birthplace: "St. Petersburg, FL", status: "Active", experience: "4th Season", position: "G", awards: "Defensive Player of the Year 2022" },
+      { name: "Adrian Thomas", wins: 18, losses: 2, htwt: "6'3, 195lbs", college: "University of Miami", birthplace: "Orlando, FL", status: "Active", experience: "6th Season", position: "F", awards: "MVP 2021" },
+      { name: "Oscar Moncada", wins: 8, losses: 12, htwt: "6'1, 175lbs", college: "Florida International University", birthplace: "Tampa, FL", status: "Active", experience: "3rd Season", position: "G", awards: "Rookie of the Year 2022" },
+      { name: "Joey Grasso", wins: 10, losses: 10, htwt: "6'2, 190lbs", college: "University of Central Florida", birthplace: "Jacksonville, FL", status: "Active", experience: "4th Season", position: "G", awards: "Sixth Man of the Year 2023" },
+      { name: "Scott Ely", wins: 14, losses: 6, htwt: "6'4, 200lbs", college: "University of South Florida", birthplace: "Fort Lauderdale, FL", status: "Active", experience: "7th Season", position: "F", awards: "All-Defensive Team 2022" },
+      { name: "Shaun Morton", wins: 7, losses: 13, htwt: "6'0, 185lbs", college: "Florida Atlantic University", birthplace: "West Palm Beach, FL", status: "Active", experience: "3rd Season", position: "G", awards: "Most Improved Player 2023" },
+      { name: "Jordan Bowditch", wins: 11, losses: 9, htwt: "6'3, 195lbs", college: "University of North Florida", birthplace: "Gainesville, FL", status: "Active", experience: "5th Season", position: "F", awards: "All-Star 2022" },
+      { name: "Derek Kissos", wins: 5, losses: 15, htwt: "6'1, 180lbs", college: "Florida Gulf Coast University", birthplace: "Naples, FL", status: "Active", experience: "2nd Season", position: "G", awards: "" },
+      { name: "Dane Espegard", wins: 13, losses: 7, htwt: "6'2, 190lbs", college: "University of Tampa", birthplace: "Sarasota, FL", status: "Active", experience: "6th Season", position: "G", awards: "All-Defensive Team 2023" },
+      { name: "Dane Dill", wins: 16, losses: 4, htwt: "6'4, 205lbs", college: "Stetson University", birthplace: "Daytona Beach, FL", status: "Active", experience: "4th Season", position: "F", awards: "Defensive Player of the Year 2023" },
+      { name: "KC Crowder", wins: 9, losses: 11, htwt: "6'0, 175lbs", college: "Rollins College", birthplace: "Winter Park, FL", status: "Active", experience: "5th Season", position: "G", awards: "All-Star 2021" },
+      { name: "Blake Schultz", wins: 6, losses: 14, htwt: "6'3, 195lbs", college: "Eckerd College", birthplace: "Clearwater, FL", status: "Active", experience: "2nd Season", position: "F", awards: "" },
+      { name: "Brian Gomez", wins: 12, losses: 8, htwt: "6'1, 185lbs", college: "Nova Southeastern University", birthplace: "Hollywood, FL", status: "Active", experience: "6th Season", position: "G", awards: "All-Star 2022" },
+      { name: "Brandon Wright", wins: 14, losses: 6, htwt: "6'4, 200lbs", college: "Lynn University", birthplace: "Boca Raton, FL", status: "Active", experience: "4th Season", position: "F", awards: "All-Defensive Team 2021" }
     ];
 
     // Filter out players that already exist
@@ -193,21 +200,37 @@ export default function App() {
       console.log('Selected player:', selectedPlayer);
       console.log('Form data:', formData);
       
+      // Convert string values to numbers for saving
+      const playerData = {
+        ...formData,
+        wins: parseInt(formData.wins) || 0,
+        losses: parseInt(formData.losses) || 0
+      };
+
+      let result;
       if (selectedPlayer) {
         console.log('📝 Updating existing player:', selectedPlayer.id);
-        const result = await updatePlayer(selectedPlayer.id, formData);
+        result = await updatePlayer(selectedPlayer.id, playerData);
         console.log('✅ Player update result:', result);
+        
+        // Show success message
+        showToast(`✅ Player "${playerData.name}" has been successfully updated!`, "success");
+        
         setSelectedPlayer(null);
         setView("bio");
       } else {
         console.log('➕ Adding new player');
-        const result = await addPlayer(formData);
+        result = await addPlayer(playerData);
         console.log('✅ Player add result:', result);
+        
+        // Show success message
+        showToast(`✅ Player "${playerData.name}" has been successfully added!`, "success");
       }
       
       console.log('🧹 Clearing form data');
-      setFormData({ name: "", wins: 0, losses: 0, htwt: "", college: "", birthplace: "", status: "", experience: "", position: "", awards: "" });
+      setFormData({ name: "", wins: "", losses: "", htwt: "", college: "", birthplace: "", status: "", experience: "", position: "", awards: "" });
       console.log('✅ addOrUpdatePlayer completed successfully');
+      
     } catch (error) {
       console.error('❌ Error in addOrUpdatePlayer:', error);
       console.error('Error details:', {
@@ -215,7 +238,7 @@ export default function App() {
         message: error.message,
         stack: error.stack
       });
-      alert(`Error saving player: ${error.message}. Please try again.`);
+      showToast(`❌ Error saving player: ${error.message}`, "error");
     }
   };
 
@@ -226,17 +249,23 @@ export default function App() {
       const player = players.find(p => p.name === sessionData.name);
       if (player) {
         console.log('🔄 Updating player stats for:', player.name);
-        await updatePlayerStats(player.id, sessionData.wins, sessionData.losses);
+        const wins = parseInt(sessionData.wins) || 0;
+        const losses = parseInt(sessionData.losses) || 0;
+        await updatePlayerStats(player.id, wins, losses);
         console.log('✅ Player stats updated successfully');
-        setSessionData({ name: "", wins: 0, losses: 0 });
+        
+        // Show success message
+        showToast(`✅ ${player.name}'s stats updated! New Record: ${wins}W - ${losses}L`, "success");
+        
+        setSessionData({ name: "", wins: "", losses: "" });
         // Stay on data page to see updated rankings
       } else {
         console.error('❌ Player not found:', sessionData.name);
-        alert('Player not found. Please try again.');
+        showToast('❌ Player not found. Please try again.', "error");
       }
     } catch (error) {
       console.error('❌ Error updating player stats:', error);
-      alert(`Error updating player stats: ${error.message}. Please try again.`);
+      showToast(`❌ Error updating player stats: ${error.message}`, "error");
     }
   };
 
@@ -251,9 +280,17 @@ export default function App() {
   };
 
   const startEditPlayer = (player) => {
+    console.log('🔄 Starting to edit player:', player);
     setSelectedPlayer(player);
-    setFormData(player);
+    // Convert wins/losses to strings for form input
+    const formDataForEdit = {
+      ...player,
+      wins: player.wins ? player.wins.toString() : "",
+      losses: player.losses ? player.losses.toString() : ""
+    };
+    setFormData(formDataForEdit);
     setView("edit");
+    console.log('✅ Player edit mode activated with form data:', formDataForEdit);
   };
 
   const viewProfile = (player) => {
@@ -267,13 +304,47 @@ export default function App() {
   console.log('🎯 Current players state:', players.length, 'players');
   console.log('🎯 Ranked players:', rankedPlayers.length, 'players');
 
+  // Show loading screen while connecting to Firebase
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-black text-gray-200 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <h2 className="text-xl font-semibold mb-2">Connecting to Firebase...</h2>
+          <p className="text-gray-400">Loading your 4QA Hoops data</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black text-gray-200 p-4 sm:p-6">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg transition-all duration-300 ${
+          toastType === "success" 
+            ? "bg-green-600 text-white" 
+            : "bg-red-600 text-white"
+        }`}>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">{toastMessage}</span>
+            <button 
+              onClick={() => setToastMessage("")}
+              className="ml-2 text-white hover:text-gray-200"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
       {/* Connection Status */}
       <div className="text-center mb-4">
         <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
           connectionStatus === "Connected" ? "bg-green-900 text-green-300" : 
           connectionStatus === "Failed" ? "bg-red-900 text-red-300" : 
+          connectionStatus === "Permission Denied" ? "bg-red-900 text-red-300" :
+          connectionStatus === "Service Unavailable" ? "bg-red-900 text-red-300" :
+          connectionStatus === "Not Initialized" ? "bg-red-900 text-red-300" :
           connectionStatus === "Testing..." ? "bg-blue-900 text-blue-300" :
           connectionStatus === "Connecting..." ? "bg-blue-900 text-blue-300" :
           connectionStatus === "Slow Connection" ? "bg-orange-900 text-orange-300" :
@@ -282,6 +353,9 @@ export default function App() {
           <div className={`w-2 h-2 rounded-full mr-2 ${
             connectionStatus === "Connected" ? "bg-green-400" : 
             connectionStatus === "Failed" ? "bg-red-400" : 
+            connectionStatus === "Permission Denied" ? "bg-red-400" :
+            connectionStatus === "Service Unavailable" ? "bg-red-400" :
+            connectionStatus === "Not Initialized" ? "bg-red-400" :
             connectionStatus === "Testing..." ? "bg-blue-400 animate-pulse" :
             connectionStatus === "Connecting..." ? "bg-blue-400 animate-pulse" :
             connectionStatus === "Slow Connection" ? "bg-orange-400 animate-pulse" :
@@ -292,80 +366,23 @@ export default function App() {
         <div className="text-xs text-gray-400 mt-1">
           Players loaded: {players.length} | Ranked: {rankedPlayers.length}
         </div>
-        <Button 
-          onClick={async () => {
-            setConnectionStable(false);
-            setConnectionStatus("Testing...");
-            const result = await testFirebaseConnection();
-            setConnectionStatus(result.success ? "Connected" : "Failed");
-            setConnectionStable(result.success);
-          }}
-          className="ml-2 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded"
-        >
-          Test Connection
-        </Button>
-        <Button 
-          onClick={async () => {
-            try {
-              console.log('🧪 Testing Firebase write operation...');
-              const testPlayer = {
-                name: "Test Player",
-                wins: 1,
-                losses: 0,
-                htwt: "6'0, 180lbs",
-                college: "Test University",
-                birthplace: "Test City",
-                status: "Active",
-                experience: "1st Season",
-                position: "G",
-                awards: "Test Award"
-              };
-              const result = await addPlayer(testPlayer);
-              console.log('✅ Test player added successfully:', result);
-              alert('Test player added successfully! Check console for details.');
-            } catch (error) {
-              console.error('❌ Test write failed:', error);
-              alert(`Test write failed: ${error.message}`);
-            }
-          }}
-          className="ml-2 px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded"
-        >
-          Test Write
-        </Button>
-        <Button 
-          onClick={async () => {
-            try {
-              console.log('🔐 Testing Firebase write permissions...');
-              const result = await testFirebaseWrite();
-              if (result.success) {
-                alert('Write permissions test passed! Check console for details.');
-              } else {
-                alert(`Write permissions test failed: ${result.error}`);
+        {players.length < 15 && (
+          <Button 
+            onClick={async () => {
+              try {
+                console.log('🔄 Manually initializing all 15 players...');
+                await initializeDefaultPlayers();
+                alert('All 15 players have been added! Refresh the page to see them.');
+              } catch (error) {
+                console.error('❌ Failed to initialize players:', error);
+                alert(`Failed to add players: ${error.message}`);
               }
-            } catch (error) {
-              console.error('❌ Write permissions test failed:', error);
-              alert(`Write permissions test failed: ${error.message}`);
-            }
-          }}
-          className="ml-2 px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs rounded"
-        >
-          Test Permissions
-        </Button>
-        <Button 
-          onClick={async () => {
-            try {
-              console.log('🔄 Manually initializing all default players...');
-              await initializeDefaultPlayers();
-              alert('Default players initialization completed! Check console for details.');
-            } catch (error) {
-              console.error('❌ Failed to initialize default players:', error);
-              alert(`Failed to initialize default players: ${error.message}`);
-            }
-          }}
-          className="ml-2 px-2 py-1 bg-orange-600 hover:bg-orange-700 text-white text-xs rounded"
-        >
-          Init All Players
-        </Button>
+            }}
+            className="mt-2 px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white text-xs rounded"
+          >
+            Add All 15 Players
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-wrap justify-center gap-4 sm:gap-6 mb-6 sm:mb-8">
@@ -383,7 +400,7 @@ export default function App() {
             transition={{ duration: 0.6 }}
             className="text-2xl sm:text-4xl font-bold text-center mb-6 sm:mb-10 text-silver"
           >
-            Statistics
+            Standings
           </motion.h1>
 
           <div className="max-w-xl mx-auto space-y-2">
@@ -395,7 +412,10 @@ export default function App() {
                       <div className="flex items-center space-x-2">
                         <span className="text-lg font-bold text-gray-300 w-8">#{index + 1}</span>
                         <div>
-                          <h2 className="text-sm font-semibold text-gray-200">{player.name}</h2>
+                          <h2 className="text-sm font-semibold text-gray-200 flex items-center gap-1">
+                            {player.name}
+                            {index < 5 && <span className="text-yellow-400">★</span>}
+                          </h2>
                           <div className="text-xs text-gray-400">
                             <span className="text-green-400">{player.wins}W</span> • 
                             <span className="text-red-400">{player.losses}L</span> • 
@@ -641,7 +661,10 @@ export default function App() {
                   className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
                   type="number" 
                   value={formData.wins} 
-                  onChange={e => setFormData({ ...formData, wins: parseInt(e.target.value) || 0 })}
+                  onChange={e => {
+                    const value = e.target.value;
+                    setFormData({ ...formData, wins: value === '' ? '' : parseInt(value) || 0 });
+                  }}
                 />
               </div>
               <div>
@@ -650,12 +673,20 @@ export default function App() {
                   className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
                   type="number" 
                   value={formData.losses} 
-                  onChange={e => setFormData({ ...formData, losses: parseInt(e.target.value) || 0 })}
+                  onChange={e => {
+                    const value = e.target.value;
+                    setFormData({ ...formData, losses: value === '' ? '' : parseInt(value) || 0 });
+                  }}
                 />
               </div>
             </div>
             <div className="flex gap-4 mt-6">
-              <Button onClick={addOrUpdatePlayer} className="flex-1 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg">
+              <Button onClick={() => {
+                console.log('🔄 Save Changes button clicked!');
+                console.log('Current selectedPlayer:', selectedPlayer);
+                console.log('Current formData:', formData);
+                addOrUpdatePlayer();
+              }} className="flex-1 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg">
                 Save Changes
               </Button>
               <Button onClick={() => { setSelectedPlayer(null); setView("bio"); }} className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-lg">
@@ -691,8 +722,8 @@ export default function App() {
                       const selectedPlayer = players.find(p => p.name === e.target.value);
                       setSessionData({ 
                         name: e.target.value, 
-                        wins: selectedPlayer ? selectedPlayer.wins : 0, 
-                        losses: selectedPlayer ? selectedPlayer.losses : 0 
+                        wins: selectedPlayer ? selectedPlayer.wins.toString() : "", 
+                        losses: selectedPlayer ? selectedPlayer.losses.toString() : "" 
                       });
                     }}
                   >
@@ -709,7 +740,10 @@ export default function App() {
                     type="number" 
                     min="0"
                     value={sessionData.wins} 
-                    onChange={e => setSessionData({ ...sessionData, wins: parseInt(e.target.value) || 0 })}
+                    onChange={e => {
+                      const value = e.target.value;
+                      setSessionData({ ...sessionData, wins: value === '' ? '' : parseInt(value) || 0 });
+                    }}
                   />
                 </div>
                 <div>
@@ -719,7 +753,10 @@ export default function App() {
                     type="number" 
                     min="0"
                     value={sessionData.losses} 
-                    onChange={e => setSessionData({ ...sessionData, losses: parseInt(e.target.value) || 0 })}
+                    onChange={e => {
+                      const value = e.target.value;
+                      setSessionData({ ...sessionData, losses: value === '' ? '' : parseInt(value) || 0 });
+                    }}
                   />
                 </div>
               </div>
@@ -738,18 +775,18 @@ export default function App() {
                     </div>
                     <div>
                       <span className="text-gray-400">New Wins:</span>
-                      <p className="text-green-400 font-semibold">{sessionData.wins}</p>
+                      <p className="text-green-400 font-semibold">{sessionData.wins || 0}</p>
                     </div>
                     <div>
                       <span className="text-gray-400">New Losses:</span>
-                      <p className="text-red-400 font-semibold">{sessionData.losses}</p>
+                      <p className="text-red-400 font-semibold">{sessionData.losses || 0}</p>
                     </div>
                   </div>
                   <div className="mt-2">
                     <span className="text-gray-400">Win Percentage:</span>
                     <p className="text-blue-400 font-semibold">
-                      {sessionData.wins + sessionData.losses > 0 
-                        ? ((sessionData.wins / (sessionData.wins + sessionData.losses)) * 100).toFixed(1) 
+                      {(parseInt(sessionData.wins) || 0) + (parseInt(sessionData.losses) || 0) > 0 
+                        ? (((parseInt(sessionData.wins) || 0) / ((parseInt(sessionData.wins) || 0) + (parseInt(sessionData.losses) || 0))) * 100).toFixed(1) 
                         : 0}%
                     </p>
                   </div>
@@ -775,22 +812,30 @@ export default function App() {
 
             {/* Recent Updates */}
             <div className="p-4 sm:p-6 bg-gray-900 border border-gray-700 rounded-xl shadow-lg">
-              <h2 className="text-xl sm:text-2xl mb-4 font-semibold text-gray-300">Current Rankings</h2>
+              <h2 className="text-xl sm:text-2xl mb-4 font-semibold text-gray-300">Standings</h2>
               <div className="space-y-3">
-                {calculateRankings(players).slice(0, 10).map((player, index) => (
-                  <div key={player.name} className="bg-gray-800 p-4 rounded-lg flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <span className="text-2xl font-bold text-gray-300 w-12">#{index + 1}</span>
-                      <div>
-                        <p className="font-semibold text-gray-200">{player.name}</p>
-                        <div className="text-sm text-gray-400">
-                          <span className="text-gray-400">{player.position}</span> • 
-                          <span className="text-green-400"> {player.wins}W</span> • 
-                          <span className="text-red-400">{player.losses}L</span> • 
-                          <span className="text-blue-400"> {player.winPct}%</span>
+                {calculateRankings(players).map((player, index) => (
+                  <div key={player.name}>
+                    <div className="bg-gray-800 p-4 rounded-lg flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <span className="text-2xl font-bold text-gray-300 w-12">#{index + 1}</span>
+                        <div>
+                          <p className="font-semibold text-gray-200 flex items-center gap-2">
+                            {player.name}
+                            {index < 5 && <span className="text-yellow-400 text-lg">★</span>}
+                          </p>
+                          <div className="text-sm text-gray-400">
+                            <span className="text-gray-400">{player.position}</span> • 
+                            <span className="text-green-400"> {player.wins}W</span> • 
+                            <span className="text-red-400">{player.losses}L</span> • 
+                            <span className="text-blue-400"> {player.winPct}%</span>
+                          </div>
                         </div>
                       </div>
                     </div>
+                    {index === 5 && (
+                      <div className="border-t-2 border-dotted border-gray-600 my-4"></div>
+                    )}
                   </div>
                 ))}
               </div>

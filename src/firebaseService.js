@@ -148,40 +148,59 @@ export const deletePlayer = async (playerId) => {
 
 // Real-time listener for players
 export const subscribeToPlayers = (callback, errorCallback) => {
-  const q = query(collection(db, COLLECTION_NAME), orderBy('name'));
-  
-  console.log('🔗 Setting up real-time listener for players...');
-  console.log('🔗 Collection name:', COLLECTION_NAME);
-  console.log('🔗 Query:', q);
-  
-  return onSnapshot(q, (querySnapshot) => {
-    console.log('📡 Real-time update received:', querySnapshot.size, 'players');
-    console.log('📡 Query snapshot metadata:', {
-      fromCache: querySnapshot.metadata.fromCache,
-      hasPendingWrites: querySnapshot.metadata.hasPendingWrites
-    });
+  try {
+    console.log('🔗 Setting up real-time listener for players...');
+    console.log('🔗 Collection name:', COLLECTION_NAME);
+    console.log('🔗 Database instance:', db);
     
-    const players = [];
-    querySnapshot.forEach((doc) => {
-      console.log('📄 Processing document:', doc.id, doc.data());
-      players.push({ id: doc.id, ...doc.data() });
-    });
+    // Check if db is properly initialized
+    if (!db) {
+      const error = new Error('Firestore database not initialized');
+      console.error('❌ Database not initialized:', error);
+      if (errorCallback) {
+        errorCallback(error);
+      }
+      return () => {}; // Return empty unsubscribe function
+    }
     
-    console.log('📡 Final players array:', players.length, 'players');
-    console.log('📡 Players data:', players);
+    const q = query(collection(db, COLLECTION_NAME), orderBy('name'));
+    console.log('🔗 Query created successfully');
     
-    callback(players);
-  }, (error) => {
-    console.error('❌ Error in real-time listener:', error);
-    console.error('Error details:', {
-      code: error.code,
-      message: error.message,
-      stack: error.stack
+    return onSnapshot(q, (querySnapshot) => {
+      console.log('📡 Real-time update received:', querySnapshot.size, 'players');
+      console.log('📡 Query snapshot metadata:', {
+        fromCache: querySnapshot.metadata.fromCache,
+        hasPendingWrites: querySnapshot.metadata.hasPendingWrites
+      });
+      
+      const players = [];
+      querySnapshot.forEach((doc) => {
+        console.log('📄 Processing document:', doc.id, doc.data());
+        players.push({ id: doc.id, ...doc.data() });
+      });
+      
+      console.log('📡 Final players array:', players.length, 'players');
+      console.log('📡 Players data:', players);
+      
+      callback(players);
+    }, (error) => {
+      console.error('❌ Error in real-time listener:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
+      if (errorCallback) {
+        errorCallback(error);
+      }
     });
+  } catch (error) {
+    console.error('❌ Error setting up real-time listener:', error);
     if (errorCallback) {
       errorCallback(error);
     }
-  });
+    return () => {}; // Return empty unsubscribe function
+  }
 };
 
 // Update player stats (wins/losses)

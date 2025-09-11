@@ -1,7 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { initializeFirestore } from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 // Your web app's Firebase configuration
@@ -19,14 +19,18 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase Analytics
-const analytics = getAnalytics(app);
+// Initialize Firebase Analytics (only in production or when explicitly enabled)
+let analytics = null;
+if (typeof window !== 'undefined' && (import.meta.env.PROD || import.meta.env.VITE_ENABLE_ANALYTICS === 'true')) {
+  try {
+    analytics = getAnalytics(app);
+  } catch (error) {
+    console.warn('Analytics initialization failed:', error);
+  }
+}
 
-// Initialize Firestore Database
-export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: false,
-  useFetchStreams: true,
-});
+// Initialize Firestore Database (using standard getFirestore instead of initializeFirestore)
+export const db = getFirestore(app);
 
 // Initialize Firebase Authentication
 export const auth = getAuth(app);
