@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { subscribeToPlayers, addPlayer, updatePlayer, deletePlayer, updatePlayerStats, testFirebaseConnection, testFirebaseWrite, getPlayers } from './firebase';
+import FirebaseSanityTest from './FirebaseSanityTest';
 const Card = ({ children, className }) => (
   <div className={`rounded-xl shadow-lg ${className}`}>{children}</div>
 );
@@ -420,6 +421,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-black text-gray-200 p-4 sm:p-6">
+      {/* Firebase Sanity Test - Remove after verification */}
+      <FirebaseSanityTest />
       {/* Toast Notification */}
       {toastMessage && (
         <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg transition-all duration-300 ${
