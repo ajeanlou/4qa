@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { subscribeToPlayers, addPlayer, updatePlayer, deletePlayer, updatePlayerStats, testFirebaseConnection, testFirebaseWrite, getPlayers } from './firebaseService';
+import { subscribeToPlayers, addPlayer, updatePlayer, deletePlayer, updatePlayerStats, testFirebaseConnection, testFirebaseWrite, getPlayers } from './firebase';
 const Card = ({ children, className }) => (
   <div className={`rounded-xl shadow-lg ${className}`}>{children}</div>
 );
@@ -34,12 +34,32 @@ const PLAYER_LIST = [
 ];
 
 function calculateRankings(players) {
-  return players.map(p => {
+  const playersWithStats = players.map(p => {
     const totalGames = p.wins + p.losses;
     const winPct = totalGames > 0 ? p.wins / totalGames : 0;
     const weightedScore = (p.wins * 0.75) + (winPct * 100 * 0.25);
     return { ...p, winPct: (winPct * 100).toFixed(1), weightedScore };
   }).sort((a, b) => b.weightedScore - a.weightedScore);
+
+  // Calculate Games Behind (GB) for each player
+  if (playersWithStats.length > 0) {
+    const leader = playersWithStats[0];
+    const leaderWins = leader.wins;
+    const leaderLosses = leader.losses;
+    
+    return playersWithStats.map((player, index) => {
+      if (index === 0) {
+        // Leader has no games behind
+        return { ...player, gamesBehind: '--' };
+      } else {
+        // Calculate games behind: ((Leader Wins - Player Wins) + (Player Losses - Leader Losses)) / 2
+        const gamesBehind = ((leaderWins - player.wins) + (player.losses - leaderLosses)) / 2;
+        return { ...player, gamesBehind: gamesBehind.toFixed(1) };
+      }
+    });
+  }
+  
+  return playersWithStats;
 }
 
 export default function App() {
@@ -57,6 +77,8 @@ export default function App() {
   const [connectionStable, setConnectionStable] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState("");
+  const [autoSaveStatus, setAutoSaveStatus] = useState({ saving: false, lastSaved: null, error: null, typing: false });
+  const autoSaveTimeoutRef = useRef(null);
   const [toastType, setToastType] = useState("success");
 
   const showToast = (message, type = "success") => {
@@ -298,10 +320,89 @@ export default function App() {
     setView("profile");
   };
 
+  // Auto-save function with debouncing
+  const autoSavePlayer = useCallback(async (playerId, playerData) => {
+    if (!playerId || !playerData) return;
+    
+    try {
+      setAutoSaveStatus({ saving: true, lastSaved: null, error: null, typing: false });
+      
+      // Convert string values to numbers for saving and only include changed fields
+      const dataToSave = {
+        name: playerData.name,
+        position: playerData.position,
+        htwt: playerData.htwt,
+        college: playerData.college,
+        birthplace: playerData.birthplace,
+        status: playerData.status,
+        experience: playerData.experience,
+        awards: playerData.awards,
+        wins: parseInt(playerData.wins) || 0,
+        losses: parseInt(playerData.losses) || 0
+      };
+      
+      await updatePlayer(playerId, dataToSave);
+      
+      setAutoSaveStatus({ 
+        saving: false, 
+        lastSaved: new Date().toLocaleTimeString(), 
+        error: null,
+        typing: false
+      });
+      
+      console.log('✅ Auto-saved player data:', playerId);
+      
+      // Show success message and navigate back to profile view
+      showToast(`✅ ${playerData.name}'s profile updated successfully!`, "success");
+      
+      // Navigate back to profile view after successful save
+      setTimeout(() => {
+        setView("profile");
+        setAutoSaveStatus({ saving: false, lastSaved: null, error: null, typing: false });
+      }, 1500); // Wait 1.5 seconds to show the "Saved" message
+      
+    } catch (error) {
+      console.error('❌ Auto-save failed:', error);
+      setAutoSaveStatus({ 
+        saving: false, 
+        lastSaved: null, 
+        error: error.message,
+        typing: false
+      });
+    }
+  }, []);
+
+  // Debounced auto-save trigger
+  const triggerAutoSave = useCallback((playerId, playerData) => {
+    if (!playerId || !playerData) return;
+    
+    // Show immediate feedback that changes are being tracked
+    setAutoSaveStatus({ saving: false, lastSaved: null, error: null, typing: true });
+    
+    // Clear existing timeout
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+    
+    // Set new timeout for auto-save (300ms delay for faster response)
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      autoSavePlayer(playerId, playerData);
+    }, 300);
+  }, [autoSavePlayer]);
+
   const rankedPlayers = calculateRankings(players);
   
   // Debug logging for players state
   console.log('🎯 Current players state:', players.length, 'players');
+
+  // Cleanup auto-save timeout on unmount or view change
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [view]);
   console.log('🎯 Ranked players:', rankedPlayers.length, 'players');
 
   // Show loading screen while connecting to Firebase
@@ -387,64 +488,10 @@ export default function App() {
 
       <div className="flex flex-wrap justify-center gap-4 sm:gap-6 mb-6 sm:mb-8">
         <Button onClick={() => setView("data")} className={view === "data" ? "bg-gray-600 w-full sm:w-auto" : "bg-gray-800 w-full sm:w-auto"}>Data</Button>
-        <Button onClick={() => setView("statistics")} className={view === "statistics" ? "bg-gray-600 w-full sm:w-auto" : "bg-gray-800 w-full sm:w-auto"}>Statistics</Button>
+        <Button onClick={() => setView("standings")} className={view === "standings" ? "bg-gray-600 w-full sm:w-auto" : "bg-gray-800 w-full sm:w-auto"}>Standings</Button>
         <Button onClick={() => setView("bio")} className={view === "bio" ? "bg-gray-600 w-full sm:w-auto" : "bg-gray-800 w-full sm:w-auto"}>Bio</Button>
       </div>
 
-      {/* Statistics Page */}
-      {view === "statistics" && (
-        <>
-          <motion.h1 
-            initial={{ opacity: 0, y: -20 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            transition={{ duration: 0.6 }}
-            className="text-2xl sm:text-4xl font-bold text-center mb-6 sm:mb-10 text-silver"
-          >
-            Standings
-          </motion.h1>
-
-          <div className="max-w-xl mx-auto space-y-2">
-            {rankedPlayers.map((player, index) => (
-              <motion.div key={player.name} whileHover={{ scale: 1.01 }}>
-                <Card className="bg-gray-800 rounded shadow">
-                  <CardContent className="p-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-lg font-bold text-gray-300 w-8">#{index + 1}</span>
-                        <div>
-                          <h2 className="text-sm font-semibold text-gray-200 flex items-center gap-1">
-                            {player.name}
-                            {index < 5 && <span className="text-yellow-400">★</span>}
-                          </h2>
-                          <div className="text-xs text-gray-400">
-                            <span className="text-green-400">{player.wins}W</span> • 
-                            <span className="text-red-400">{player.losses}L</span> • 
-                            <span className="text-blue-400">{player.winPct}%</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button 
-                          onClick={() => startEditPlayer(player)} 
-                          className="px-1.5 py-0.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded"
-                        >
-                          Edit
-                        </Button>
-                        <Button 
-                          onClick={() => handleDeletePlayer(player.id)} 
-                          className="px-1.5 py-0.5 bg-red-700 hover:bg-red-600 text-white text-xs rounded"
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
-        </>
-      )}
 
       {/* Bio Page */}
       {view === "bio" && (
@@ -460,27 +507,26 @@ export default function App() {
 
           {/* Player Profiles */}
           {bioTab === "profiles" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               {players.map((player) => (
-                <motion.div key={player.name} whileHover={{ scale: 1.03 }}>
-                  <Card className="bg-gray-900 border border-gray-600 text-gray-100 rounded-xl shadow-lg">
-                    <CardContent className="p-4 sm:p-6">
-                      <div className="text-center mb-4">
-                        <div className="w-24 h-24 bg-gray-700 rounded-full mx-auto mb-3 flex items-center justify-center">
-                          <span className="text-2xl font-bold text-gray-300">
+                <motion.div key={player.name} whileHover={{ scale: 1.02 }}>
+                  <Card className="bg-gray-900 border border-gray-600 text-gray-100 rounded-lg shadow-lg">
+                    <CardContent className="p-3 sm:p-4">
+                      <div className="text-center mb-3">
+                        <div className="w-16 h-16 bg-gray-700 rounded-full mx-auto mb-2 flex items-center justify-center">
+                          <span className="text-lg font-bold text-gray-300">
                             {player.name.split(' ').map(n => n[0]).join('')}
                           </span>
                         </div>
-                        <h2 className="text-xl sm:text-2xl font-bold text-gray-300">{player.name}</h2>
-                        <p className="text-gray-400 text-sm">{player.position} • {player.status}</p>
+                        <h2 className="text-lg font-bold text-gray-300">{player.name}</h2>
+                        <p className="text-gray-400 text-xs">{player.position} • {player.status}</p>
                       </div>
                       
-                      <div className="space-y-2 text-sm">
+                      <div className="space-y-1 text-xs">
                         <div className="flex justify-between">
-                          <span className="text-gray-400">Height/Weight:</span>
+                          <span className="text-gray-400">HT/WT:</span>
                           <span>{player.htwt || 'N/A'}</span>
                         </div>
-
                         <div className="flex justify-between">
                           <span className="text-gray-400">Birthplace:</span>
                           <span>{player.birthplace || 'N/A'}</span>
@@ -493,24 +539,18 @@ export default function App() {
                           <span className="text-gray-400">College:</span>
                           <span>{player.college || 'N/A'}</span>
                         </div>
-                        {player.awards && (
-                          <div className="pt-2 border-t border-gray-700">
-                            <span className="text-gray-400 text-xs">Awards:</span>
-                            <p className="text-xs mt-1">{player.awards}</p>
-                          </div>
-                        )}
                       </div>
                       
-                      <div className="flex gap-2 mt-4">
+                      <div className="flex gap-1 mt-3">
                         <Button 
                           onClick={() => viewProfile(player)} 
-                          className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg"
+                          className="flex-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded"
                         >
-                          View Full Profile
+                          View
                         </Button>
                         <Button 
                           onClick={() => startEditPlayer(player)} 
-                          className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg"
+                          className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded"
                         >
                           Edit
                         </Button>
@@ -521,6 +561,7 @@ export default function App() {
               ))}
             </div>
           )}
+
         </>
       )}
 
@@ -533,21 +574,36 @@ export default function App() {
             transition={{ duration: 0.6 }}
             className="text-2xl sm:text-4xl font-bold text-center mb-6 sm:mb-10 text-silver"
           >
-            {selectedPlayer.name}'s Profile
+            {(() => {
+              // Get the most current player data from the players array
+              const currentPlayer = players.find(p => p.id === selectedPlayer.id) || selectedPlayer;
+              return currentPlayer.name;
+            })()}'s Profile
           </motion.h1>
 
           <div className="max-w-xl mx-auto">
             <Card className="bg-gray-900 border border-gray-600 text-gray-100 rounded-xl shadow-lg">
               <CardContent className="p-4 sm:p-6 space-y-2">
-                <p><b>Name:</b> {selectedPlayer.name}</p>
-                <p><b>HT/WT:</b> {selectedPlayer.htwt}</p>
-                <p><b>Status:</b> {selectedPlayer.status}</p>
-                <p><b>Birthplace:</b> {selectedPlayer.birthplace}</p>
-                <p><b>Experience:</b> {selectedPlayer.experience}</p>
-                <p><b>Position:</b> {selectedPlayer.position}</p>
-                <p><b>Awards:</b> {selectedPlayer.awards}</p>
+                {(() => {
+                  // Get the most current player data from the players array
+                  const currentPlayer = players.find(p => p.id === selectedPlayer.id) || selectedPlayer;
+                  return (
+                    <>
+                      <p><b>Name:</b> {currentPlayer.name}</p>
+                      <p><b>HT/WT:</b> {currentPlayer.htwt}</p>
+                      <p><b>Status:</b> {currentPlayer.status}</p>
+                      <p><b>Birthplace:</b> {currentPlayer.birthplace}</p>
+                      <p><b>Experience:</b> {currentPlayer.experience}</p>
+                      <p><b>Position:</b> {currentPlayer.position}</p>
+                      <p><b>Awards:</b> {currentPlayer.awards}</p>
+                    </>
+                  );
+                })()}
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mt-4">
-                  <Button variant="secondary" onClick={() => startEditPlayer(selectedPlayer)} className="px-4 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded-lg w-full sm:w-auto">Edit</Button>
+                  <Button variant="secondary" onClick={() => {
+                    const currentPlayer = players.find(p => p.id === selectedPlayer.id) || selectedPlayer;
+                    startEditPlayer(currentPlayer);
+                  }} className="px-4 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded-lg w-full sm:w-auto">Edit</Button>
                   <Button variant="destructive" onClick={() => handleDeletePlayer(selectedPlayer.id)} className="px-4 py-1 bg-red-700 hover:bg-red-600 text-white rounded-lg w-full sm:w-auto">Delete</Button>
                   <Button onClick={() => setView("bio")} className="px-4 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded-lg w-full sm:w-auto">Back</Button>
                 </div>
@@ -569,6 +625,36 @@ export default function App() {
             Edit {selectedPlayer.name}'s Profile
           </motion.h1>
 
+          {/* Auto-save status indicator */}
+          <div className="max-w-2xl mx-auto mb-4">
+            <div className="flex items-center justify-center gap-2 text-sm">
+              {autoSaveStatus.typing && !autoSaveStatus.saving && (
+                <div className="flex items-center gap-2 text-yellow-400">
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                  <span>Typing...</span>
+                </div>
+              )}
+              {autoSaveStatus.saving && (
+                <div className="flex items-center gap-2 text-blue-400">
+                  <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Saving...</span>
+                </div>
+              )}
+              {autoSaveStatus.lastSaved && !autoSaveStatus.saving && !autoSaveStatus.typing && (
+                <div className="flex items-center gap-2 text-green-400">
+                  <span>✓</span>
+                  <span>Saved at {autoSaveStatus.lastSaved}</span>
+                </div>
+              )}
+              {autoSaveStatus.error && (
+                <div className="flex items-center gap-2 text-red-400">
+                  <span>⚠</span>
+                  <span>Save failed: {autoSaveStatus.error}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="max-w-2xl mx-auto p-4 sm:p-6 bg-gray-900 border border-gray-700 rounded-xl shadow-lg">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -576,7 +662,11 @@ export default function App() {
                 <input 
                   className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
                   value={formData.name} 
-                  onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  onChange={e => {
+                    const newFormData = { ...formData, name: e.target.value };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
                 />
               </div>
               <div>
@@ -584,7 +674,11 @@ export default function App() {
                 <select 
                   className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
                   value={formData.position} 
-                  onChange={e => setFormData({ ...formData, position: e.target.value })}
+                  onChange={e => {
+                    const newFormData = { ...formData, position: e.target.value };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
                 >
                   <option value="G">Guard (G)</option>
                   <option value="F">Forward (F)</option>
@@ -596,7 +690,11 @@ export default function App() {
                 <input 
                   className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
                   value={formData.htwt} 
-                  onChange={e => setFormData({ ...formData, htwt: e.target.value })}
+                  onChange={e => {
+                    const newFormData = { ...formData, htwt: e.target.value };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
                   placeholder="e.g., 6'0, 185lbs"
                 />
               </div>
@@ -606,7 +704,11 @@ export default function App() {
                 <input 
                   className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
                   value={formData.college} 
-                  onChange={e => setFormData({ ...formData, college: e.target.value })}
+                  onChange={e => {
+                    const newFormData = { ...formData, college: e.target.value };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
                 />
               </div>
               <div>
@@ -614,7 +716,11 @@ export default function App() {
                 <input 
                   className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
                   value={formData.birthplace} 
-                  onChange={e => setFormData({ ...formData, birthplace: e.target.value })}
+                  onChange={e => {
+                    const newFormData = { ...formData, birthplace: e.target.value };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
                 />
               </div>
               <div>
@@ -622,7 +728,11 @@ export default function App() {
                 <select 
                   className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
                   value={formData.status} 
-                  onChange={e => setFormData({ ...formData, status: e.target.value })}
+                  onChange={e => {
+                    const newFormData = { ...formData, status: e.target.value };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
@@ -634,7 +744,11 @@ export default function App() {
                 <select 
                   className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
                   value={formData.experience} 
-                  onChange={e => setFormData({ ...formData, experience: e.target.value })}
+                  onChange={e => {
+                    const newFormData = { ...formData, experience: e.target.value };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
                 >
                   <option value="1st Season">1st Season</option>
                   <option value="2nd Season">2nd Season</option>
@@ -651,7 +765,11 @@ export default function App() {
                 <input 
                   className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
                   value={formData.awards} 
-                  onChange={e => setFormData({ ...formData, awards: e.target.value })}
+                  onChange={e => {
+                    const newFormData = { ...formData, awards: e.target.value };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
                   placeholder="e.g., All-Star 2023, MVP 2021"
                 />
               </div>
@@ -663,7 +781,9 @@ export default function App() {
                   value={formData.wins} 
                   onChange={e => {
                     const value = e.target.value;
-                    setFormData({ ...formData, wins: value === '' ? '' : parseInt(value) || 0 });
+                    const newFormData = { ...formData, wins: value === '' ? '' : parseInt(value) || 0 };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
                   }}
                 />
               </div>
@@ -675,7 +795,9 @@ export default function App() {
                   value={formData.losses} 
                   onChange={e => {
                     const value = e.target.value;
-                    setFormData({ ...formData, losses: value === '' ? '' : parseInt(value) || 0 });
+                    const newFormData = { ...formData, losses: value === '' ? '' : parseInt(value) || 0 };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
                   }}
                 />
               </div>
@@ -810,35 +932,274 @@ export default function App() {
               </div>
             </div>
 
-            {/* Recent Updates */}
+          </div>
+        </>
+      )}
+
+      {/* Standings Page */}
+      {view === "standings" && (
+        <>
+          <motion.h1 
+            initial={{ opacity: 0, y: -20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ duration: 0.6 }}
+            className="text-2xl sm:text-4xl font-bold text-center mb-6 sm:mb-10 text-silver"
+          >
+            Standings
+          </motion.h1>
+
+          <div className="max-w-4xl mx-auto">
             <div className="p-4 sm:p-6 bg-gray-900 border border-gray-700 rounded-xl shadow-lg">
-              <h2 className="text-xl sm:text-2xl mb-4 font-semibold text-gray-300">Standings</h2>
-              <div className="space-y-3">
-                {calculateRankings(players).map((player, index) => (
-                  <div key={player.name}>
-                    <div className="bg-gray-800 p-4 rounded-lg flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <span className="text-2xl font-bold text-gray-300 w-12">#{index + 1}</span>
-                        <div>
-                          <p className="font-semibold text-gray-200 flex items-center gap-2">
-                            {player.name}
-                            {index < 5 && <span className="text-yellow-400 text-lg">★</span>}
-                          </p>
-                          <div className="text-sm text-gray-400">
-                            <span className="text-gray-400">{player.position}</span> • 
-                            <span className="text-green-400"> {player.wins}W</span> • 
-                            <span className="text-red-400">{player.losses}L</span> • 
-                            <span className="text-blue-400"> {player.winPct}%</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    {index === 5 && (
-                      <div className="border-t-2 border-dotted border-gray-600 my-4"></div>
-                    )}
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="w-full bg-gray-800 rounded-lg shadow-lg">
+                  <thead className="bg-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">Player</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-200">W</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-200">L</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-200">Win%</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-200">GB</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-600">
+                    {calculateRankings(players).map((player, index) => (
+                      <>
+                        <tr key={player.name} className={index < 6 ? "bg-gray-800 hover:bg-gray-750" : "bg-gray-750 hover:bg-gray-700"}>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-200">
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-400 text-xs">#{index + 1}</span>
+                              <button 
+                                onClick={() => viewProfile(player)} 
+                                className="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
+                              >
+                                {player.name}
+                              </button>
+                              {index < 6 && <span className="text-yellow-400">★</span>}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center text-sm text-gray-200">{player.wins}</td>
+                          <td className="px-4 py-3 text-center text-sm text-gray-200">{player.losses}</td>
+                          <td className="px-4 py-3 text-center text-sm text-gray-200">{player.winPct}%</td>
+                          <td className="px-4 py-3 text-center text-sm text-gray-200">{player.gamesBehind}</td>
+                        </tr>
+                        {index === 5 && (
+                          <tr>
+                            <td colSpan="5" className="px-0 py-2">
+                              <div className="border-t-2 border-dotted border-gray-500"></div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    ))}
+                  </tbody>
+                </table>
               </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Edit Player Page */}
+      {view === "edit" && selectedPlayer && (
+        <>
+          <motion.h1 
+            initial={{ opacity: 0, y: -20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ duration: 0.6 }}
+            className="text-2xl sm:text-4xl font-bold text-center mb-6 sm:mb-10 text-silver"
+          >
+            Edit {selectedPlayer.name}'s Profile
+          </motion.h1>
+
+          {/* Auto-save status indicator */}
+          <div className="max-w-2xl mx-auto mb-4">
+            <div className="flex items-center justify-center gap-2 text-sm">
+              {autoSaveStatus.typing && !autoSaveStatus.saving && (
+                <div className="flex items-center gap-2 text-yellow-400">
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                  <span>Typing...</span>
+                </div>
+              )}
+              {autoSaveStatus.saving && (
+                <div className="flex items-center gap-2 text-blue-400">
+                  <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Saving...</span>
+                </div>
+              )}
+              {autoSaveStatus.lastSaved && !autoSaveStatus.saving && !autoSaveStatus.typing && (
+                <div className="flex items-center gap-2 text-green-400">
+                  <span>✓</span>
+                  <span>Saved at {autoSaveStatus.lastSaved}</span>
+                </div>
+              )}
+              {autoSaveStatus.error && (
+                <div className="flex items-center gap-2 text-red-400">
+                  <span>⚠</span>
+                  <span>Save failed: {autoSaveStatus.error}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="max-w-2xl mx-auto p-4 sm:p-6 bg-gray-900 border border-gray-700 rounded-xl shadow-lg">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Name</label>
+                <input 
+                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
+                  value={formData.name} 
+                  onChange={e => {
+                    const newFormData = { ...formData, name: e.target.value };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Position</label>
+                <select 
+                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
+                  value={formData.position} 
+                  onChange={e => {
+                    const newFormData = { ...formData, position: e.target.value };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
+                >
+                  <option value="G">Guard (G)</option>
+                  <option value="F">Forward (F)</option>
+                  <option value="C">Center (C)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Height/Weight</label>
+                <input 
+                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
+                  value={formData.htwt} 
+                  onChange={e => {
+                    const newFormData = { ...formData, htwt: e.target.value };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
+                  placeholder="e.g., 6'0, 185lbs"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">College</label>
+                <input 
+                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
+                  value={formData.college} 
+                  onChange={e => {
+                    const newFormData = { ...formData, college: e.target.value };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Birthplace</label>
+                <input 
+                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
+                  value={formData.birthplace} 
+                  onChange={e => {
+                    const newFormData = { ...formData, birthplace: e.target.value };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
+                <select 
+                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
+                  value={formData.status} 
+                  onChange={e => {
+                    const newFormData = { ...formData, status: e.target.value };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Experience</label>
+                <select 
+                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
+                  value={formData.experience} 
+                  onChange={e => {
+                    const newFormData = { ...formData, experience: e.target.value };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
+                >
+                  <option value="1st Season">1st Season</option>
+                  <option value="2nd Season">2nd Season</option>
+                  <option value="3rd Season">3rd Season</option>
+                  <option value="4th Season">4th Season</option>
+                  <option value="5th Season">5th Season</option>
+                  <option value="6th Season">6th Season</option>
+                  <option value="7th Season">7th Season</option>
+                  <option value="8th Season">8th Season</option>
+                  <option value="9th Season">9th Season</option>
+                  <option value="10th Season">10th Season</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Awards</label>
+                <input 
+                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
+                  value={formData.awards} 
+                  onChange={e => {
+                    const newFormData = { ...formData, awards: e.target.value };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
+                  placeholder="e.g., All-Star 2023, MVP 2021"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Wins</label>
+                <input 
+                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
+                  type="number" 
+                  value={formData.wins} 
+                  onChange={e => {
+                    const value = e.target.value;
+                    const newFormData = { ...formData, wins: value === '' ? '' : parseInt(value) || 0 };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Losses</label>
+                <input 
+                  className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" 
+                  type="number" 
+                  value={formData.losses} 
+                  onChange={e => {
+                    const value = e.target.value;
+                    const newFormData = { ...formData, losses: value === '' ? '' : parseInt(value) || 0 };
+                    setFormData(newFormData);
+                    triggerAutoSave(selectedPlayer.id, newFormData);
+                  }}
+                />
+              </div>
+            </div>
+            <div className="flex gap-4 mt-6">
+              <Button onClick={() => {
+                console.log('🔄 Save Changes button clicked!');
+                console.log('Current selectedPlayer:', selectedPlayer);
+                console.log('Current formData:', formData);
+                addOrUpdatePlayer();
+              }} className="flex-1 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg">
+                Save Changes
+              </Button>
+              <Button onClick={() => { setSelectedPlayer(null); setView("bio"); }} className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-lg">
+                Cancel
+              </Button>
             </div>
           </div>
         </>
