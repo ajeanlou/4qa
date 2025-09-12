@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { subscribeToPlayers, addPlayer, updatePlayer, deletePlayer, updatePlayerStats, testFirebaseConnection, testFirebaseWrite, getPlayers } from './firebase';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import AuthForm from './components/AuthForm';
+import UserProfile from './components/UserProfile';
+import UnauthorizedAccess from './components/UnauthorizedAccess';
+import { useAnalytics } from './hooks/useAnalytics';
+import { canAccessDataInput } from './utils/userRoles';
 const Card = ({ children, className }) => (
   <div className={`shadow-lg ${className}`}>{children}</div>
 );
@@ -62,7 +68,9 @@ function calculateRankings(players) {
   return playersWithStats;
 }
 
-export default function App() {
+function AppContent() {
+  const { currentUser } = useAuth();
+  const { trackPageView, trackAction } = useAnalytics();
   const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [view, setView] = useState("data");
@@ -82,6 +90,8 @@ export default function App() {
   const [toastType, setToastType] = useState("success");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [previousView, setPreviousView] = useState("bio");
+  const [showAuthForm, setShowAuthForm] = useState(false);
+  const [showUserProfile, setShowUserProfile] = useState(false);
 
   const showToast = (message, type = "success") => {
     setToastMessage(message);
@@ -278,6 +288,8 @@ export default function App() {
         await updatePlayerStats(player.id, wins, losses);
         console.log('✅ Player stats updated successfully');
         
+        trackAction('update_player_stats', 'statistics', `${player.name}: ${wins}W-${losses}L`);
+        
         // Show success message
         showToast(`✅ ${player.name}'s stats updated! New Record: ${wins}W - ${losses}L`, "success");
         
@@ -305,6 +317,7 @@ export default function App() {
 
   const startEditPlayer = (player) => {
     console.log('🔄 Starting to edit player:', player);
+    trackAction('edit_player', 'player_management', player.name);
     setSelectedPlayer(player);
     // Convert wins/losses to strings for form input
     const formDataForEdit = {
@@ -318,6 +331,7 @@ export default function App() {
   };
 
   const viewProfile = (player) => {
+    trackAction('view_player_profile', 'player_management', player.name);
     setPreviousView(view); // Store current view before switching to profile
     setSelectedPlayer(player);
     setView("profile");
@@ -406,6 +420,22 @@ export default function App() {
       }
     };
   }, [view]);
+
+  // Track page views when view changes
+  useEffect(() => {
+    const pageNames = {
+      'data': 'Data Input',
+      'standings': 'Standings',
+      'bio': 'Player Bios',
+      'profile': 'Player Profile',
+      'edit': 'Edit Player'
+    };
+    
+    if (pageNames[view]) {
+      trackPageView(pageNames[view]);
+    }
+  }, [view, trackPageView]);
+
   console.log('🎯 Ranked players:', rankedPlayers.length, 'players');
 
   // Show loading screen while connecting to Firebase
@@ -415,8 +445,45 @@ export default function App() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <h2 className="text-xl font-semibold mb-2">Connecting to Firebase...</h2>
-          <p className="text-gray-400">Loading your 4QA Hoops data</p>
+          <p className="text-gray-400">Loading your 4QA data</p>
         </div>
+      </div>
+    );
+  }
+
+  // Show sign-in page if user is not authenticated
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-black text-gray-200 flex items-center justify-center p-4">
+        <div className="text-center max-w-md w-full">
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold text-white mb-4">4QA</h1>
+            <p className="text-gray-400 text-lg">Basketball Statistics Tracker</p>
+          </div>
+          
+          <div className="bg-gray-900 rounded-xl shadow-2xl p-8 border border-gray-700">
+            <h2 className="text-2xl font-bold text-white mb-6">Welcome to 4QA</h2>
+            <p className="text-gray-400 mb-6">
+              Please sign in to access player statistics, standings, and team management features.
+            </p>
+            
+            <button
+              onClick={() => setShowAuthForm(true)}
+              className="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-lg transition-colors mb-4"
+            >
+              Sign In to Continue
+            </button>
+            
+            <p className="text-sm text-gray-500">
+              Secure access to your basketball data
+            </p>
+          </div>
+        </div>
+
+        {/* Auth Modal */}
+        {showAuthForm && (
+          <AuthForm onClose={() => setShowAuthForm(false)} />
+        )}
       </div>
     );
   }
@@ -489,44 +556,111 @@ export default function App() {
         )}
       </div>
 
-      {/* Hamburger Menu */}
-      <div className="relative">
-        <button
-          onClick={() => setIsMenuOpen(!isMenuOpen)}
-          className="fixed top-4 right-4 z-50 p-2 bg-gray-800 hover:bg-gray-700 rounded-lg shadow-lg"
-        >
-          <div className="w-6 h-6 flex flex-col justify-center space-y-1">
-            <div className={`w-full h-0.5 bg-gray-300 transition-transform ${isMenuOpen ? 'rotate-45 translate-y-1.5' : ''}`}></div>
-            <div className={`w-full h-0.5 bg-gray-300 transition-opacity ${isMenuOpen ? 'opacity-0' : ''}`}></div>
-            <div className={`w-full h-0.5 bg-gray-300 transition-transform ${isMenuOpen ? '-rotate-45 -translate-y-1.5' : ''}`}></div>
-          </div>
-        </button>
-        
-        {/* Menu Dropdown */}
-        {isMenuOpen && (
-          <div className="fixed top-16 right-4 z-40 bg-gray-800 rounded-lg shadow-lg border border-gray-700 min-w-32">
-            <div className="py-2">
-              <button
-                onClick={() => { setView("data"); setIsMenuOpen(false); }}
-                className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-700 ${view === "data" ? "bg-gray-700 text-blue-400" : "text-gray-300"}`}
-              >
-                Input
-              </button>
-              <button
-                onClick={() => { setView("standings"); setIsMenuOpen(false); }}
-                className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-700 ${view === "standings" ? "bg-gray-700 text-blue-400" : "text-gray-300"}`}
-              >
-                Standings
-              </button>
-              <button
-                onClick={() => { setView("bio"); setIsMenuOpen(false); }}
-                className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-700 ${view === "bio" ? "bg-gray-700 text-blue-400" : "text-gray-300"}`}
-              >
-                Bio
-              </button>
+      {/* Header with Auth */}
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center space-x-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">4QA</h1>
+          {currentUser && (
+            <div className="flex items-center space-x-2">
+              <div className="text-sm text-gray-400">
+                Welcome, {currentUser.displayName || currentUser.email?.split('@')[0]}
+              </div>
+              {canAccessDataInput(currentUser) && (
+                <div className="flex items-center space-x-1 px-2 py-1 bg-green-900 text-green-300 text-xs rounded-full">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Admin</span>
+                </div>
+              )}
             </div>
+          )}
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          {/* Hamburger Menu */}
+          <div className="relative">
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="p-2 hover:bg-gray-800 rounded-lg h-10 transition-colors"
+            >
+              <div className="w-6 h-6 flex flex-col justify-center space-y-1">
+                <div className={`w-full h-0.5 bg-gray-300 transition-transform ${isMenuOpen ? 'rotate-45 translate-y-1.5' : ''}`}></div>
+                <div className={`w-full h-0.5 bg-gray-300 transition-opacity ${isMenuOpen ? 'opacity-0' : ''}`}></div>
+                <div className={`w-full h-0.5 bg-gray-300 transition-transform ${isMenuOpen ? '-rotate-45 -translate-y-1.5' : ''}`}></div>
+              </div>
+            </button>
+            
+            {/* Menu Dropdown */}
+            {isMenuOpen && (
+              <div className="absolute top-12 right-0 z-40 bg-gray-800 rounded-lg shadow-lg min-w-32">
+                <div className="py-2">
+                  {canAccessDataInput(currentUser) ? (
+                    <button
+                      onClick={() => { 
+                        trackAction('navigate_to_data', 'navigation');
+                        setView("data"); 
+                        setIsMenuOpen(false); 
+                      }}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-700 ${view === "data" ? "bg-gray-700 text-blue-400" : "text-gray-300"}`}
+                    >
+                      Input
+                    </button>
+                  ) : (
+                    <div className="w-full px-4 py-2 text-left text-sm text-gray-500 cursor-not-allowed flex items-center">
+                      Input
+                      <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => { 
+                      trackAction('navigate_to_standings', 'navigation');
+                      setView("standings"); 
+                      setIsMenuOpen(false); 
+                    }}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-700 ${view === "standings" ? "bg-gray-700 text-blue-400" : "text-gray-300"}`}
+                  >
+                    Standings
+                  </button>
+                  <button
+                    onClick={() => { 
+                      trackAction('navigate_to_bio', 'navigation');
+                      setView("bio"); 
+                      setIsMenuOpen(false); 
+                    }}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-700 ${view === "bio" ? "bg-gray-700 text-blue-400" : "text-gray-300"}`}
+                  >
+                    Bio
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+          
+          {/* Auth Button */}
+          {currentUser ? (
+            <button
+              onClick={() => setShowUserProfile(true)}
+              className="flex items-center space-x-2 p-2 hover:bg-gray-800 rounded-lg transition-colors h-10"
+            >
+              <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                <span className="text-xs font-bold text-white">
+                  {currentUser.displayName ? currentUser.displayName[0].toUpperCase() : 'U'}
+                </span>
+              </div>
+              <span className="text-gray-300 hidden sm:block text-sm">Profile</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowAuthForm(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-lg transition-colors h-10"
+            >
+              Sign In
+            </button>
+          )}
+        </div>
       </div>
 
 
@@ -537,52 +671,52 @@ export default function App() {
           {/* Player Profiles */}
           {bioTab === "profiles" && (
             <div className="flex justify-center">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 max-w-7xl">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6 max-w-8xl">
               {players.map((player) => (
                 <motion.div key={player.name} whileHover={{ scale: 1.02 }} className="relative">
                   {/* Edit Symbol */}
                   <button
                     onClick={() => startEditPlayer(player)}
-                    className="absolute top-2 right-2 z-10 p-1 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors rounded"
+                    className="absolute top-3 right-3 z-10 p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors rounded-lg"
                     title="Edit player"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                   </button>
                   <Card className="bg-gray-900 text-gray-100 shadow-lg">
-                    <CardContent className="p-3 sm:p-4">
-                      <div className="text-center mb-3">
-                        <div className="w-16 h-16 bg-gray-700 rounded-full mx-auto mb-2 flex items-center justify-center">
-                          <span className="text-lg font-bold text-gray-300">
+                    <CardContent className="p-4 sm:p-6">
+                      <div className="text-center mb-4">
+                        <div className="w-20 h-20 bg-gray-700 rounded-full mx-auto mb-3 flex items-center justify-center">
+                          <span className="text-xl font-bold text-gray-300">
                             {player.name.split(' ').map(n => n[0]).join('')}
                           </span>
                         </div>
                         <button 
                           onClick={() => viewProfile(player)} 
-                          className="text-lg font-bold text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
+                          className="text-xl font-bold text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
                         >
                           {player.name}
                         </button>
-                        <p className="text-gray-400 text-xs">{player.position} • {player.status}</p>
+                        <p className="text-gray-400 text-sm mt-1">{player.position} • {player.status}</p>
                       </div>
                       
-                      <div className="space-y-1 text-xs">
+                      <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                          <span className="text-gray-400">HT/WT:</span>
-                          <span>{player.htwt || 'N/A'}</span>
+                          <span className="text-gray-400 font-medium">HT/WT:</span>
+                          <span className="font-semibold">{player.htwt || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-400">Birthplace:</span>
-                          <span>{player.birthplace || 'N/A'}</span>
+                          <span className="text-gray-400 font-medium">Birthplace:</span>
+                          <span className="font-semibold">{player.birthplace || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-400">Experience:</span>
-                          <span>{player.experience || 'N/A'}</span>
+                          <span className="text-gray-400 font-medium">Experience:</span>
+                          <span className="font-semibold">{player.experience || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-400">College:</span>
-                          <span>{player.college || 'N/A'}</span>
+                          <span className="text-gray-400 font-medium">College:</span>
+                          <span className="font-semibold">{player.college || 'N/A'}</span>
                         </div>
                       </div>
                       
@@ -817,6 +951,10 @@ export default function App() {
       {/* Data Input Page */}
       {view === "data" && (
         <>
+          {/* Check if user is authorized to access data input */}
+          {!canAccessDataInput(currentUser) ? (
+            <UnauthorizedAccess onClose={() => setView("standings")} />
+          ) : (
 
           <div className="max-w-2xl mx-auto mt-16">
             <div className="p-4 sm:p-6 bg-gray-900 shadow-lg mb-6">
@@ -910,6 +1048,7 @@ export default function App() {
             </div>
 
           </div>
+          )}
         </>
       )}
 
@@ -917,38 +1056,38 @@ export default function App() {
       {view === "standings" && (
         <>
 
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-6xl mx-auto">
             <div className="overflow-x-auto">
-              <table className="w-full bg-black rounded-lg">
+              <table className="w-full bg-black rounded-lg text-base">
                   <thead className="bg-gray-900">
                     <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-200">Player</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-200">W</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-200">L</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-200">Win%</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-200">GB</th>
+                      <th className="px-6 py-4 text-left text-base font-semibold text-gray-200">Player</th>
+                      <th className="px-6 py-4 text-center text-base font-semibold text-gray-200">W</th>
+                      <th className="px-6 py-4 text-center text-base font-semibold text-gray-200">L</th>
+                      <th className="px-6 py-4 text-center text-base font-semibold text-gray-200">Win%</th>
+                      <th className="px-6 py-4 text-center text-base font-semibold text-gray-200">GB</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800">
                     {calculateRankings(players).map((player, index) => (
                       <>
                         <tr key={player.name} className={index < 6 ? "bg-black hover:bg-gray-900" : "bg-black hover:bg-gray-900"}>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-200">
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-400 text-xs">#{index + 1}</span>
+                          <td className="px-6 py-4 text-base font-medium text-gray-200">
+                            <div className="flex items-center gap-3">
+                              <span className="text-gray-400 text-sm font-semibold">#{index + 1}</span>
                               <button 
                                 onClick={() => viewProfile(player)} 
-                                className="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
+                                className="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer text-base"
                               >
                                 {player.name}
                               </button>
-                              {index < 6 && <span className="text-yellow-400">★</span>}
+                              {index < 6 && <span className="text-yellow-400 text-lg">★</span>}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-center text-sm text-gray-200">{player.wins}</td>
-                          <td className="px-4 py-3 text-center text-sm text-gray-200">{player.losses}</td>
-                          <td className="px-4 py-3 text-center text-sm text-gray-200">{player.winPct}%</td>
-                          <td className="px-4 py-3 text-center text-sm text-gray-200">{player.gamesBehind}</td>
+                          <td className="px-6 py-4 text-center text-base text-gray-200 font-semibold">{player.wins}</td>
+                          <td className="px-6 py-4 text-center text-base text-gray-200 font-semibold">{player.losses}</td>
+                          <td className="px-6 py-4 text-center text-base text-gray-200 font-semibold">{player.winPct}%</td>
+                          <td className="px-6 py-4 text-center text-base text-gray-200 font-semibold">{player.gamesBehind}</td>
                         </tr>
                         {index === 5 && (
                           <tr>
@@ -966,6 +1105,24 @@ export default function App() {
         </>
       )}
 
+      {/* Auth Modal */}
+      {showAuthForm && (
+        <AuthForm onClose={() => setShowAuthForm(false)} />
+      )}
+
+      {/* User Profile Modal */}
+      {showUserProfile && (
+        <UserProfile onClose={() => setShowUserProfile(false)} />
+      )}
+
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
