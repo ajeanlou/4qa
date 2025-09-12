@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import AuthForm from './components/AuthForm';
 import UserProfile from './components/UserProfile';
 import UnauthorizedAccess from './components/UnauthorizedAccess';
+import AddPlayerForm from './components/AddPlayerForm';
 import { useAnalytics } from './hooks/useAnalytics';
 import { canAccessDataInput } from './utils/userRoles';
 const Card = ({ children, className }) => (
@@ -24,6 +25,7 @@ const Button = ({ children, onClick, className }) => (
 const PLAYER_LIST = [
   "Amani Jean-Louis",
   "Bobby Floyd",
+  "Matt McDowell",
   "Adrian Thomas",
   "Oscar Moncada",
   "Joey Grasso",
@@ -92,6 +94,7 @@ function AppContent() {
   const [previousView, setPreviousView] = useState("bio");
   const [showAuthForm, setShowAuthForm] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
+  const [showAddPlayerForm, setShowAddPlayerForm] = useState(false);
 
   const showToast = (message, type = "success") => {
     setToastMessage(message);
@@ -131,11 +134,11 @@ function AppContent() {
       
       if (firebasePlayers.length === 0) {
         // If no players in Firebase, initialize with default players
-        console.log('🔄 No players found, initializing all 15 default players...');
+        console.log('🔄 No players found, initializing all 16 default players...');
         initializeDefaultPlayers();
-      } else if (firebasePlayers.length < 15) {
-        // If we have some players but not all 15, add the missing ones
-        console.log(`📊 Found ${firebasePlayers.length} players, but expected 15. Adding missing players...`);
+      } else if (firebasePlayers.length < 16) {
+        // If we have some players but not all 16, add the missing ones
+        console.log(`📊 Found ${firebasePlayers.length} players, but expected 16. Adding missing players...`);
         setPlayers(firebasePlayers);
         initializeDefaultPlayers();
       } else {
@@ -192,6 +195,7 @@ function AppContent() {
     const defaultPlayers = [
       { name: "Amani Jean-Louis", wins: 12, losses: 8, htwt: "6'0, 185lbs", college: "University of Florida", birthplace: "Miami, FL", status: "Active", experience: "5th Season", position: "G", awards: "All-Star 2023" },
       { name: "Bobby Floyd", wins: 15, losses: 5, htwt: "5'10, 180lbs", college: "North Carolina State", birthplace: "St. Petersburg, FL", status: "Active", experience: "4th Season", position: "G", awards: "Defensive Player of the Year 2022" },
+      { name: "Matt McDowell", wins: 9, losses: 11, htwt: "6'2, 190lbs", college: "University of Central Florida", birthplace: "Orlando, FL", status: "Active", experience: "3rd Season", position: "F", awards: "Most Improved Player 2023" },
       { name: "Adrian Thomas", wins: 18, losses: 2, htwt: "6'3, 195lbs", college: "University of Miami", birthplace: "Orlando, FL", status: "Active", experience: "6th Season", position: "F", awards: "MVP 2021" },
       { name: "Oscar Moncada", wins: 8, losses: 12, htwt: "6'1, 175lbs", college: "Florida International University", birthplace: "Tampa, FL", status: "Active", experience: "3rd Season", position: "G", awards: "Rookie of the Year 2022" },
       { name: "Joey Grasso", wins: 10, losses: 10, htwt: "6'2, 190lbs", college: "University of Central Florida", birthplace: "Jacksonville, FL", status: "Active", experience: "4th Season", position: "G", awards: "Sixth Man of the Year 2023" },
@@ -274,6 +278,11 @@ function AppContent() {
       });
       showToast(`❌ Error saving player: ${error.message}`, "error");
     }
+  };
+
+  const handlePlayerAdded = () => {
+    showToast('✅ New player added successfully!', "success");
+    // The real-time listener will automatically update the players list
   };
 
   const updateSessionData = async () => {
@@ -537,13 +546,13 @@ function AppContent() {
         <div className="text-xs text-gray-400 mt-1">
           Players loaded: {players.length} | Ranked: {rankedPlayers.length}
         </div>
-        {players.length < 15 && (
+        {players.length < 16 && (
           <Button 
             onClick={async () => {
               try {
-                console.log('🔄 Manually initializing all 15 players...');
+                console.log('🔄 Manually initializing all 16 players...');
                 await initializeDefaultPlayers();
-                alert('All 15 players have been added! Refresh the page to see them.');
+                alert('All 16 players have been added! Refresh the page to see them.');
               } catch (error) {
                 console.error('❌ Failed to initialize players:', error);
                 alert(`Failed to add players: ${error.message}`);
@@ -551,7 +560,7 @@ function AppContent() {
             }}
             className="mt-2 px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white text-xs rounded"
           >
-            Add All 15 Players
+            Add All 16 Players
           </Button>
         )}
       </div>
@@ -701,24 +710,35 @@ function AppContent() {
                         <p className="text-gray-400 text-sm mt-1">{player.position} • {player.status}</p>
                       </div>
                       
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-400 font-medium">HT/WT:</span>
-                          <span className="font-semibold">{player.htwt || 'N/A'}</span>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-400 font-medium">Status:</span>
+                            <div className="flex items-center space-x-2">
+                              <div className={`w-2 h-2 rounded-full ${
+                                player.status === 'Active' ? 'bg-green-500' : 
+                                player.status === 'Inactive' ? 'bg-red-500' : 
+                                'bg-yellow-500'
+                              }`}></div>
+                              <span className="font-semibold">{player.status || 'N/A'}</span>
+                            </div>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400 font-medium">HT/WT:</span>
+                            <span className="font-semibold">{player.htwt || 'N/A'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400 font-medium">Birthplace:</span>
+                            <span className="font-semibold">{player.birthplace || 'N/A'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400 font-medium">Experience:</span>
+                            <span className="font-semibold">{player.experience || 'N/A'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400 font-medium">College:</span>
+                            <span className="font-semibold">{player.college || 'N/A'}</span>
+                          </div>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-400 font-medium">Birthplace:</span>
-                          <span className="font-semibold">{player.birthplace || 'N/A'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-400 font-medium">Experience:</span>
-                          <span className="font-semibold">{player.experience || 'N/A'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-400 font-medium">College:</span>
-                          <span className="font-semibold">{player.college || 'N/A'}</span>
-                        </div>
-                      </div>
                       
                     </CardContent>
                   </Card>
@@ -774,7 +794,15 @@ function AppContent() {
                           <p><b>Birthplace:</b> {currentPlayer.birthplace}</p>
                         </div>
                         <div className="space-y-2">
-                          <p><b>Status:</b> {currentPlayer.status}</p>
+                          <div className="flex items-center space-x-2">
+                            <span><b>Status:</b></span>
+                            <div className={`w-3 h-3 rounded-full ${
+                              currentPlayer.status === 'Active' ? 'bg-green-500' : 
+                              currentPlayer.status === 'Inactive' ? 'bg-red-500' : 
+                              'bg-yellow-500'
+                            }`}></div>
+                            <span>{currentPlayer.status}</span>
+                          </div>
                           <p><b>Experience:</b> {currentPlayer.experience}</p>
                           <p><b>College:</b> {currentPlayer.college}</p>
                           <p><b>Awards:</b> {currentPlayer.awards}</p>
@@ -957,6 +985,19 @@ function AppContent() {
           ) : (
 
           <div className="max-w-2xl mx-auto mt-16">
+            {/* Add Player Button */}
+            <div className="mb-6 flex justify-center">
+              <button
+                onClick={() => setShowAddPlayerForm(true)}
+                className="flex items-center space-x-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                <span>Add New Player</span>
+              </button>
+            </div>
+
             <div className="p-4 sm:p-6 bg-gray-900 shadow-lg mb-6">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                 <div>
@@ -1113,6 +1154,14 @@ function AppContent() {
       {/* User Profile Modal */}
       {showUserProfile && (
         <UserProfile onClose={() => setShowUserProfile(false)} />
+      )}
+
+      {/* Add Player Modal */}
+      {showAddPlayerForm && (
+        <AddPlayerForm 
+          onClose={() => setShowAddPlayerForm(false)} 
+          onPlayerAdded={handlePlayerAdded}
+        />
       )}
 
     </div>

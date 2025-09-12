@@ -3,6 +3,7 @@
 const AUTHORIZED_USERS = [
   'amanijeanlouis@gmail.com', // App owner - Amani Jean-Louis
   'bobbyf@hhs1.com',         // Authorized user - Bobby
+  'mattmcdowell@4qa.com',    // Authorized user - Matt McDowell
   'admin@4qa.com',           // Primary admin
   'stats@4qa.com',           // Statistics manager
   // Add more authorized emails here
