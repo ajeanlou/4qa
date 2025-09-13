@@ -3,10 +3,15 @@
 const AUTHORIZED_USERS = [
   'amanijeanlouis@gmail.com', // App owner - Amani Jean-Louis
   'bobbyf@hhs1.com',         // Authorized user - Bobby
-  'mattmcdowell@4qa.com',    // Authorized user - Matt McDowell
   'admin@4qa.com',           // Primary admin
   'stats@4qa.com',           // Statistics manager
   // Add more authorized emails here
+];
+
+// Users who can edit player profiles (restricted to owner and Bobby only)
+const EDIT_AUTHORIZED_USERS = [
+  'amanijeanlouis@gmail.com', // App owner - Amani Jean-Louis
+  'bobbyf@hhs1.com',         // Authorized user - Bobby
 ];
 
 // Check if a user is authorized to input data
@@ -24,4 +29,16 @@ export const getAuthorizedUsers = () => {
 export const canAccessDataInput = (currentUser) => {
   if (!currentUser || !currentUser.email) return false;
   return isAuthorizedUser(currentUser.email);
+};
+
+// Check if user can edit player profiles
+export const canEditPlayers = (userEmail) => {
+  if (!userEmail) return false;
+  return EDIT_AUTHORIZED_USERS.includes(userEmail.toLowerCase());
+};
+
+// Check if current user can edit players
+export const canCurrentUserEditPlayers = (currentUser) => {
+  if (!currentUser || !currentUser.email) return false;
+  return canEditPlayers(currentUser.email);
 };

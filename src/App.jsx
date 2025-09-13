@@ -7,7 +7,7 @@ import UserProfile from './components/UserProfile';
 import UnauthorizedAccess from './components/UnauthorizedAccess';
 import AddPlayerForm from './components/AddPlayerForm';
 import { useAnalytics } from './hooks/useAnalytics';
-import { canAccessDataInput } from './utils/userRoles';
+import { canAccessDataInput, canCurrentUserEditPlayers } from './utils/userRoles';
 const Card = ({ children, className }) => (
   <div className={`shadow-lg ${className}`}>{children}</div>
 );
@@ -42,7 +42,10 @@ const PLAYER_LIST = [
 ];
 
 function calculateRankings(players) {
-  const playersWithStats = players.map(p => {
+  // Filter out inactive players
+  const activePlayers = players.filter(p => p.status !== 'Inactive');
+  
+  const playersWithStats = activePlayers.map(p => {
     const totalGames = p.wins + p.losses;
     const winPct = totalGames > 0 ? p.wins / totalGames : 0;
     const weightedScore = (p.wins * 0.75) + (winPct * 100 * 0.25);
@@ -60,9 +63,24 @@ function calculateRankings(players) {
         // Leader has no games behind
         return { ...player, gamesBehind: '--' };
       } else {
-        // Calculate games behind: ((Leader Wins - Player Wins) + (Player Losses - Leader Losses)) / 2
-        const gamesBehind = ((leaderWins - player.wins) + (player.losses - leaderLosses)) / 2;
-        return { ...player, gamesBehind: gamesBehind.toFixed(1) };
+        // Check if player has played any games
+        const playerTotalGames = player.wins + player.losses;
+        if (playerTotalGames === 0) {
+          return { ...player, gamesBehind: '--' };
+        }
+        
+        // Calculate games behind: (Leader's Wins - Player's Wins + Player's Losses - Leader's Losses) / 2
+        const winsDiff = leaderWins - player.wins;
+        const lossesDiff = player.losses - leaderLosses;
+        const gamesBehind = (winsDiff + lossesDiff) / 2;
+        
+        // Debug logging
+        console.log(`GB for ${player.name}: Leader(${leaderWins}W-${leaderLosses}L) vs Player(${player.wins}W-${player.losses}L)`);
+        console.log(`Wins diff: ${winsDiff}, Losses diff: ${lossesDiff}, GB: ${gamesBehind}`);
+        
+        // Ensure games behind is never negative (shouldn't happen with proper sorting, but safety check)
+        const gbValue = Math.max(0, gamesBehind);
+        return { ...player, gamesBehind: gbValue.toFixed(1) };
       }
     });
   }
@@ -683,16 +701,18 @@ function AppContent() {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-6 max-w-8xl">
               {players.map((player) => (
                 <motion.div key={player.name} whileHover={{ scale: 1.02 }} className="relative">
-                  {/* Edit Symbol */}
-                  <button
-                    onClick={() => startEditPlayer(player)}
-                    className="absolute top-3 right-3 z-10 p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors rounded-lg"
-                    title="Edit player"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
+                  {/* Edit Symbol - Only for authorized users */}
+                  {canCurrentUserEditPlayers(currentUser) && (
+                    <button
+                      onClick={() => startEditPlayer(player)}
+                      className="absolute top-3 right-3 z-10 p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors rounded-lg"
+                      title="Edit player"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                  )}
                   <Card className="bg-gray-900 text-gray-100 shadow-lg">
                     <CardContent className="p-4 sm:p-6">
                       <div className="text-center mb-4">
@@ -820,9 +840,11 @@ function AppContent() {
       {/* Edit Player Page */}
       {view === "edit" && selectedPlayer && (
         <>
-
-
-          <div className="max-w-2xl mx-auto p-4 sm:p-6 bg-gray-900 border border-gray-700 rounded-xl shadow-lg">
+          {/* Check if user is authorized to edit players */}
+          {!canCurrentUserEditPlayers(currentUser) ? (
+            <UnauthorizedAccess onClose={() => setView("bio")} />
+          ) : (
+            <div className="max-w-2xl mx-auto p-4 sm:p-6 bg-gray-900 border border-gray-700 rounded-xl shadow-lg">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Name</label>
